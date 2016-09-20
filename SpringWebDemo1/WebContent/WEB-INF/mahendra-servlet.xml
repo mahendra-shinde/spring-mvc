@@ -13,10 +13,11 @@
 	</bean>
 	
 	<!-- Map REQUEST URI's to bean name attributes-->
-	<bean id="mapping" class="org.springframework.web.servlet.">
+	<bean id="mapping" class="org.springframework.web.servlet.mvc.annotation.DefaultAnnotationHandlerMapping">
 	</bean>
 
-<context:component-scan base-package="com.mahendra.controllers"/>
+	<context:component-scan base-package="com.mahendra.controllers"/>
+
 	<!-- Controller defined as a BEAN -->
 	<!-- <bean name="/hello.do" class="com.mahendra.controllers.HelloController">
 		
