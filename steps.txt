@@ -1,0 +1,52 @@
+Simple Web Service 
+ Using Spring-WS
+---------------------
+
+1. Create new Maven
+	project
+
+2. Maven Dependencies
+3. Add web.xml [If not present]
+4. Configure Spring-WS servlet
+     to handle ALL requests
+5. Create XML Schema [Data Contract]
+6. [Optional] Create SAMPLE XMLs
+7. Create Bean Configuration :
+	spring-ws-servlet.xml
+8. This demo is using Annotations based 
+	approach
+9. Creating a Service Interface 
+	And Implementation
+10. Configure Spring-WS to generate WSDL!!
+11. Create EndPoint
+
+
+--- My App had missing dependency
+   wsdl4j
+
+
+--- Run current project on server [Tomcat]
+
+Service URI :
+http://localhost:8080/HolidayServiceApp/holiday
+
+WSDL At
+.../HolidayServiceApp/holiday.wsdl
+
+
+Testing with SOAP-UI
+
+Launch SoapUI 
+  Create new SOAP test project
+  Copy wsdl URI into field provided
+
+Double click on "Request"
+	add values
+	press Ctrl+Enter to get response
+
+
+
+
+
+
+

@@ -1,0 +1,239 @@
+Securing Access to SpringWS [SOAP] web-services
+============================================================================
+
+Pre-Requisite:  Use previous demo 'HolidayServiceApp'
+
+Extra Dependencies:
+
+spring-ws-security: 2.2.2.RELEASE	For Security [Requires wss4j: 1.6.1]
+spring-jdbc: 4.0.9.RELEASE		For DataSource 
+mysql-connector-java: 5.1.35		For JDBC Connection with MySQL DB
+wss4j: 1.6.1				For [Apache] WSS4J 
+
+POM:
+<dependency>
+   	<groupId>org.apache.ws.security</groupId>
+   	<artifactId>wss4j</artifactId>
+   	<version>1.6.1</version>
+   </dependency>
+   <dependency>
+   	<groupId>org.springframework.ws</groupId>
+   	<artifactId>spring-ws-security</artifactId>
+   	<version>2.2.3.RELEASE</version>
+   </dependency>
+   <dependency>
+   	<groupId>org.springframework</groupId>
+   	<artifactId>spring-jdbc</artifactId>
+   	<version>4.0.9.RELEASE</version>
+   </dependency>
+
+   <dependency>
+   	<groupId>mysql</groupId>
+   	<artifactId>mysql-connector-java</artifactId>
+   	<version>5.1.35</version>
+ </dependency>
+
+=== Database Script ============[MySQL-5.5]===================================
+ create database spring-ws;
+ 
+ use spring_ws;
+ 
+create table users 
+( uname varchar(20) primary key,
+  passwd varchar(20) not null,
+  locked boolean,
+  expired boolean,
+  enabled boolean);
+  
+
+insert into users
+values('mahendra','jai-mumbai',false,false,true);
+
+insert into users values('sonali','the-great-mumbai',false,false,true);
+=============================================================================
+
+=== Create User [Implementing UserDetail] ===================================
+package com.mahendra.hr.dao;
+
+import java.util.Collection;
+
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.userdetails.UserDetails;
+
+public class User implements UserDetails {
+
+	private String username, password;
+	private boolean expired, locked, enabled;
+	
+	
+	public User(String username, String password, boolean expired,
+			boolean locked, boolean enabled) {
+		super();
+		this.username = username;
+		this.password = password;
+		this.expired = expired;
+		this.locked = locked;
+		this.enabled = enabled;
+	}
+
+	public Collection<? extends GrantedAuthority> getAuthorities() {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	public String getPassword() {
+		// TODO Auto-generated method stub
+		return password;
+	}
+
+	public String getUsername() {
+		// TODO Auto-generated method stub
+		return username;
+	}
+
+	public boolean isAccountNonExpired() {
+		// TODO Auto-generated method stub
+		return !expired;
+	}
+
+	public boolean isAccountNonLocked() {
+		// TODO Auto-generated method stub
+		return !locked;
+	}
+
+	public boolean isCredentialsNonExpired() {
+		// TODO Auto-generated method stub
+		return true;
+	}
+
+	public boolean isEnabled() {
+		// TODO Auto-generated method stub
+		return enabled;
+	}
+
+	@Override
+	public String toString() {
+		return "User [username=" + username + "]";
+	}
+	
+}
+=============================================================================
+
+=== Create UserService ======================================================
+package com.mahendra.hr.dao;
+
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Connection;
+import java.util.logging.Logger;
+
+import javax.sql.DataSource;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+
+public class MyUserDetailsService implements UserDetailsService {
+
+	private static Logger log = Logger.getLogger(MyUserDetailsService.class.getName());
+	
+	@Autowired
+	private DataSource ds;
+	
+	public UserDetails loadUserByUsername(String uname)
+			throws UsernameNotFoundException {
+		User user = findUser(uname);
+		log.info("Found: "+user);
+		return user;
+	}
+	
+	private User findUser(String name)
+	{
+		try(Connection con = ds.getConnection()){
+		PreparedStatement ps = con.prepareStatement("select * from users where lower(uname) = ?");
+		ps.setString(1, name.toLowerCase());
+		log.info("Searching for "+name);
+		return convertToUser(ps.executeQuery());
+		}catch(SQLException ex){
+			throw new RuntimeException("Can't Authenticate user! ["+ex.getMessage()+"] ");
+		}
+	}
+	
+	private User convertToUser(ResultSet rs)throws SQLException{
+		User user = null;
+		if(!rs.next())
+			return null;
+		String name = rs.getString("uname");
+		String pass = rs.getString("passwd");
+		boolean locked = rs.getBoolean("locked");
+		boolean expired = rs.getBoolean("expired");
+		boolean enabled = rs.getBoolean("enabled");
+		
+		log.info("Converting result into plain object ["+name+", "+pass+"]");
+		user = new User(name, pass, expired, locked, enabled);
+		return user;
+	}
+}
+=============================================================================
+
+==== Configure spring-ws-servlet.xml ========================================
+ 
+ Add following extra beans:
+
+ <sws:interceptors>
+      <bean id="validatingInterceptor"  class="org.springframework.ws.soap.server.endpoint.interceptor.PayloadValidatingInterceptor">
+           <property name="schema" value="/WEB-INF/classes/hr.xsd"/>
+           <property name="validateRequest" value="true"/>
+            <property name="validateResponse" value="true"/>
+ 	</bean>
+      <bean id="loggingInterceptor" class="org.springframework.ws.server.endpoint.interceptor.PayloadLoggingInterceptor"/>
+      
+   <bean class="org.springframework.ws.soap.security.wss4j.Wss4jSecurityInterceptor">
+    <property name="validationActions" value="Timestamp UsernameToken"/>
+    <property name="securementActions" value="Timestamp UsernameToken"/>
+       <property name="timestampPrecisionInMilliseconds" value="true"/>
+    <property name="securementUsername" value="mojo"/>
+    <property name="securementPassword" value="mojopass"/>
+       <property name="securementPasswordType" value="PasswordText"/>
+       <property name="securementUsernameTokenElements" value="Nonce Created"/>
+    <property name="validationCallbackHandler" ref="callbackHandler" />
+   </bean>
+  </sws:interceptors>
+
+ <bean id="callbackHandler" class="org.springframework.ws.soap.security.wss4j.callback.SpringSecurityPasswordValidationCallbackHandler">
+     <property name="userDetailsService" ref="udetails"/>
+ </bean>
+ <bean id="udetails" class="com.mahendra.hr.dao.MyUserDetailsService" />
+
+<!--Beans to access DB for authentication credentials --> 
+ <bean id="dataSource" class="org.springframework.jdbc.datasource.SimpleDriverDataSource">
+ 	<property name="driverClass" value="com.mysql.jdbc.Driver"/>
+ 	<property name="url" value="jdbc:mysql://localhost:3306/spring_ws"/>
+ 	<property name="username" value="root"/>
+ 	<property name="password" value="mahendra"/>
+ </bean>
+=============================================================================
+
+Now, Deploy The application on Servlet Container [Tomcat]
+And Test using SOAP-UI
+
+In SOAP-UI, Create new Testing project and Use following URI for wsdl file:
+	http://<domain-name>:<HTTP-port>/<context-name>/<service-id/name>.wsdl
+
+ ex:	http://localhost:8080/HolidayServiceApp/holiday.wsdl
+
+Create new Request for Service 'holiday', add authentication info [username/password]
+Generate TimeStamp and Usertoken [Using context menu] And Run test
+==============================================================================
+
+
+That's ALL!
+
+
+
+
+
+
+
